@@ -1,6 +1,7 @@
 const express = require('express');
 const router = new express.Router();
-const ExpressError = require('../expressError')
+const ExpressError = require('../expressError');
+const slugify = require('slugify');
 
 const db = require('../db');
 
@@ -10,7 +11,9 @@ router.get('/', async (request, response, next) => {
         const results = await db.query(
             `SELECT code, name, description FROM companies`
         );
-        
+        if (results.rows.length === 0) {
+            return next(new ExpressError('No companies currently in database', 404))
+        }
         return response.json({ companies: results.rows });
     }
     catch (e) {
@@ -51,7 +54,11 @@ router.get('/:code', async (request, response, next) => {
 
 router.post('/', async (request, response, next) => {
     try {
-        const { code, name, description } = request.body;
+        const { name, description } = request.body;
+        const code = slugify(name, {
+            replacement: '_',
+            lower: true
+        })
         const results = await db.query(
             `INSERT INTO companies (code, name, description)
             VALUES ($1, $2, $3)
@@ -75,7 +82,9 @@ router.put('/:code', async (request, response, next) => {
             WHERE code = $3
             RETURNING code, name, description`, [name, description, code]
         )
-
+        if (results.rows.length === 0) {
+            return next(new ExpressError(`Company not found with code: ${code}`, 404))
+        }
         return response.json({ company: results.rows[0]})
     }
     catch (e) {
@@ -90,7 +99,7 @@ router.delete('/:code', async (request, response, next) => {
             `DELETE FROM companies
             WHERE code = $1`, [code]
         )
-
+        
         return response.json({ status: "deleted"})
     }
     catch(e) {
